@@ -1,6 +1,7 @@
 package fpinscala.parallelism
 
 import java.util.concurrent._
+
 import language.implicitConversions
 
 object Par {
@@ -51,6 +52,28 @@ object Par {
   class ParOps[A](p: Par[A]) {
 
 
+  }
+
+  def lazyUnit[A](a: A): Par[A] = fork(unit(a))
+
+  def asyncF[A,B](f: A => B): A => Par[B] =
+    a => lazyUnit(f(a))
+
+  def sequence[A](ps: List[Par[A]]): Par[List[A]] =
+    ps.foldLeft(unit(List.empty[A])) {
+      case (acc, el) => map2(acc, el)(_ :+ _)
+    }
+
+  def parMap[A, B](ps: List[A])(f: A => B): Par[List[B]] = fork {
+    val fps: List[Par[B]] = ps.map(asyncF(f))
+    sequence(fps)
+  }
+
+  def parFilter[A](as: List[A])(f: A => Boolean): Par[List[A]] = fork {
+    val pred = (a: A) => if (f(a)) List(a) else Nil
+    val ps = as.map(asyncF(pred))
+
+    map(sequence(ps))(_.flatten)
   }
 }
 
